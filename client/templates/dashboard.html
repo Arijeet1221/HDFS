@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini HDFS Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .upload-section {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .file-input-wrapper label {
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+            display: inline-block;
+        }
+        
+        .file-input-wrapper label:hover {
+            background: #5568d3;
+        }
+        
+        #upload-btn {
+            background: #48bb78;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        
+        #upload-btn:hover {
+            background: #38a169;
+        }
+        
+        #upload-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+        }
+        
+        #file-name {
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        th {
+            background: #f7fafc;
+            color: #4a5568;
+            font-weight: 600;
+        }
+        
+        tr:hover {
+            background: #f7fafc;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        
+        .status-alive {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .status-dead {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+        
+        .chunk-info {
+            background: #edf2f7;
+            padding: 8px;
+            border-radius: 6px;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .download-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s;
+            font-size: 14px;
+        }
+        
+        .download-btn:hover {
+            background: #5568d3;
+        }
+        
+        .refresh-btn {
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            float: right;
+            margin-bottom: 10px;
+            transition: background 0.3s;
+        }
+        
+        .refresh-btn:hover {
+            background: #3182ce;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+        }
+        
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .message-success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .message-error {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐳 Mini HDFS Dashboard</h1>
+        
+        <div class="card">
+            <h2>Upload File</h2>
+            <div class="upload-section">
+                <div class="file-input-wrapper">
+                    <input type="file" id="file-input" onchange="handleFileSelect(event)">
+                    <label for="file-input">📁 Choose File</label>
+                </div>
+                <span id="file-name">No file selected</span>
+                <button id="upload-btn" onclick="uploadFile()" disabled>⬆️ Upload</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>Stored Files</h2>
+                <button class="refresh-btn" onclick="loadFiles()">🔄 Refresh</button>
+            </div>
+            <div id="messages"></div>
+            <div id="files-loading" class="loading">Loading...</div>
+            <table id="files-table" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Filename</th>
+                        <th>Chunks</th>
+                        <th>Datanodes</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="files-tbody">
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>System Status</h2>
+                <button class="refresh-btn" onclick="loadStatus()">🔄 Refresh</button>
+            </div>
+            <div id="status-loading" class="loading">Loading...</div>
+            <div id="status-content" style="display: none;"></div>
+        </div>
+    </div>
+    
+    <script>
+        let selectedFile = null;
+        
+        function handleFileSelect(event) {
+            selectedFile = event.target.files[0];
+            document.getElementById('file-name').textContent = selectedFile ? selectedFile.name : 'No file selected';
+            document.getElementById('upload-btn').disabled = !selectedFile;
+        }
+        
+        async function uploadFile() {
+            if (!selectedFile) return;
+            
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            
+            document.getElementById('upload-btn').disabled = true;
+            document.getElementById('upload-btn').textContent = '⏳ Uploading...';
+            
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                showMessage(result.status === 'success' ? 'File uploaded successfully!' : 'Error: ' + result.message, result.status);
+                
+                if (result.status === 'success') {
+                    document.getElementById('file-input').value = '';
+                    document.getElementById('file-name').textContent = 'No file selected';
+                    selectedFile = null;
+                    loadFiles();
+                    loadStatus();
+                }
+            } catch (error) {
+                showMessage('Error uploading file: ' + error.message, 'error');
+            } finally {
+                document.getElementById('upload-btn').disabled = false;
+                document.getElementById('upload-btn').textContent = '⬆️ Upload';
+            }
+        }
+        
+        async function loadFiles() {
+            document.getElementById('files-loading').style.display = 'block';
+            document.getElementById('files-table').style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/files');
+                const result = await response.json();
+                
+                const tbody = document.getElementById('files-tbody');
+                tbody.innerHTML = '';
+                
+                if (result.status === 'success' && result.files.length > 0) {
+                    // Note: This simple listing doesn't show chunks/datanodes in the first table.
+                    // The 'System Status' table handles the detailed visualization.
+                    result.files.forEach(filename => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td><strong>${filename}</strong></td>
+                            <td>-</td>
+                            <td>-</td>
+                            <td><button class="download-btn" onclick="downloadFile('${filename}')">⬇️ Download</button></td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                    
+                    document.getElementById('files-table').style.display = 'table';
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #718096;">No files stored</td></tr>';
+                    document.getElementById('files-table').style.display = 'table';
+                }
+            } catch (error) {
+                showMessage('Error loading files: ' + error.message, 'error');
+            } finally {
+                document.getElementById('files-loading').style.display = 'none';
+            }
+        }
+        
+        async function loadStatus() {
+            document.getElementById('status-loading').style.display = 'block';
+            document.getElementById('status-content').style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/status');
+                const result = await response.json();
+                
+                const content = document.getElementById('status-content');
+                
+                if (result.status === 'success') {
+                    let html = '<table><thead><tr><th>Filename</th><th>Chunks</th><th>Datanodes</th></tr></thead><tbody>';
+                    
+                    if (result.files.length === 0) {
+                        html += '<tr><td colspan="3" style="text-align: center; color: #718096;">No files stored</td></tr>';
+                    } else {
+                        result.files.forEach(file => {
+                            html += `<tr><td><strong>${file.filename}</strong></td><td>${file.chunks.length}</td><td>`;
+                            
+                            file.chunks.forEach((chunk, idx) => {
+                                html += `<div class="chunk-info">Chunk ${idx + 1}: `;
+                                chunk.datanodes.forEach(dn => {
+                                    // Use the datanode_status provided by the Namenode
+                                    const status = chunk.datanode_status?.[dn] || 'unknown'; 
+                                    html += `<span class="status-badge status-${status}">DN-${dn}</span> `;
+                                });
+                                html += '</div>';
+                            });
+                            
+                            html += '</td></tr>';
+                        });
+                    }
+                    
+                    html += '</tbody></table>';
+                    content.innerHTML = html;
+                } else {
+                    content.innerHTML = '<p style="color: #e53e3e;">Error loading status</p>';
+                }
+                
+                document.getElementById('status-content').style.display = 'block';
+            } catch (error) {
+                document.getElementById('status-content').innerHTML = '<p style="color: #e53e3e;">Error: Could not connect to Namenode API</p>';
+                document.getElementById('status-content').style.display = 'block';
+            } finally {
+                document.getElementById('status-loading').style.display = 'none';
+            }
+        }
+        
+        function downloadFile(filename) {
+            window.location.href = `/api/download/${filename}`;
+        }
+        
+        function showMessage(message, type) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message message-' + type;
+            messageDiv.textContent = message;
+            
+            messagesDiv.innerHTML = '';
+            messagesDiv.appendChild(messageDiv);
+            
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 5000);
+        }
+        
+        // Load data on page load
+        window.onload = function() {
+            loadFiles();
+            loadStatus();
+        };
+    </script>
+</body>
+</html>
