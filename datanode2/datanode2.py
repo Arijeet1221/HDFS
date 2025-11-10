@@ -7,23 +7,16 @@ import time
 import json
 
 # --- IMPORT FIX ---
-# Since you run from MINI_HDFS/ (parent of datanode2/), we only need to add 
-# the parent directory (MINI_HDFS/) to the path once.
-
-# FIX 1: Correct __file__ typo if it exists in your code.
-# The path needed is '..' (one level up) to reach the 'config.py' and 'common/' folder.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# FIX 2: Use Python's package-style relative import for config/common
 from config import (
     NAMENODE_ADDRESS, DATANODE2_ADDRESS, HEARTBEAT_INTERVAL, CHUNK_SIZE_BYTES
 )
-# We assume 'common.utils' is accessible because we added 'MINI_HDFS/' to sys.path
 from common.utils import send_message, receive_message, receive_file 
 
 # --- Datanode State ---
 DATANODE_ID = "DN-5003"
-STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'storage') # FIX: Corrected __file__ here too
+STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'storage')
 os.makedirs(STORAGE_DIR, exist_ok=True)
 
 
@@ -42,14 +35,13 @@ def send_heartbeat():
                 })
         except Exception as e:
             # If Namenode is down, the Datanode just logs/passes and retries
-            # print(f"Heartbeat failed: {e}") 
             pass
         
         time.sleep(HEARTBEAT_INTERVAL)
 
 
 def handle_chunk_operation(conn):
-    """Handles chunk storage and retrieval requests."""
+    """Handles chunk storage, retrieval, and COPY requests."""
     try:
         request = receive_message(conn)
         if not request:
@@ -82,6 +74,43 @@ def handle_chunk_operation(conn):
                 conn.sendall(b'\x00\x00\x00\x00') # Send 0 size
                 print(f"Chunk {chunk_id} not found.")
 
+        # ==================================================
+        # NEW: Handle Re-replication Request (COPY CHUNK)
+        # ==================================================
+        elif request_type == 'copy_chunk':
+            destination_ip = request.get('destination_ip')
+            destination_port = request.get('destination_port')
+            destination_addr = (destination_ip, destination_port)
+            
+            chunk_path = os.path.join(STORAGE_DIR, chunk_id)
+            
+            if os.path.exists(chunk_path):
+                # 1. Read the chunk data
+                with open(chunk_path, 'rb') as f:
+                    chunk_data = f.read()
+                file_size = len(chunk_data)
+                
+                # 2. Connect directly to the destination Datanode
+                print(f"Copying {chunk_id} to {destination_ip}:{destination_port}")
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as dest_sock:
+                    dest_sock.connect(destination_addr)
+                    
+                    # 3. Instruct destination to store the chunk
+                    send_message(dest_sock, {
+                        'type': 'store_chunk',
+                        'chunk_id': chunk_id,
+                        'size': file_size
+                    })
+                    
+                    # 4. Send the data payload
+                    dest_sock.sendall(chunk_data)
+                    
+                    # 5. Send success ACK back to the initiating Namenode connection
+                    send_message(conn, {'status': 'success', 'message': f'Copied {chunk_id} successfully'})
+            else:
+                send_message(conn, {'status': 'error', 'message': f'Chunk {chunk_id} not found locally for copy'})
+
+
     except Exception as e:
         print(f"Datanode connection error: {e}")
     finally:
@@ -103,6 +132,5 @@ def start_datanode():
         conn, addr = server_socket.accept()
         threading.Thread(target=handle_chunk_operation, args=(conn,), daemon=True).start()
 
-# FIX 3: Corrected main execution block name
 if __name__ == '__main__':
     start_datanode()
