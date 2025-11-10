@@ -1,3 +1,4 @@
+# MINI_HDFS/datanode1/datanode1.py
 import os
 import sys
 import socket
@@ -7,12 +8,9 @@ import json
 
 # ======================================================================
 # 1. FIX: Modify sys.path and Imports
-# We add the root directory (MINI_HDFS) to the path so we can import 'config' 
-# and 'common.utils' directly, simplifying the module names.
 # ======================================================================
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Import from the root level (MINI_HDFS)
 from config import (
     NAMENODE_ADDRESS, DATANODE1_ADDRESS, HEARTBEAT_INTERVAL, CHUNK_SIZE_BYTES
 )
@@ -20,8 +18,7 @@ from common.utils import send_message, receive_message, receive_file
 
 
 # ======================================================================
-# 2. FIX: Define Datanode State (STORAGE_DIR) at the module level
-# This ensures STORAGE_DIR is available to all functions (like handle_chunk_operation).
+# 2. Datanode State
 # ======================================================================
 DATANODE_ID = "DN-5002"
 STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'storage')
@@ -43,13 +40,13 @@ def send_heartbeat():
                 })
         except Exception as e:
             # Datanode is alive, but Namenode is down/unreachable
-            pass
+            pass 
         
         time.sleep(HEARTBEAT_INTERVAL)
 
 
 def handle_chunk_operation(conn):
-    """Handles chunk storage and retrieval requests."""
+    """Handles chunk storage, retrieval, and COPY requests."""
     try:
         request = receive_message(conn)
         if not request:
@@ -57,7 +54,6 @@ def handle_chunk_operation(conn):
 
         request_type = request.get('type')
         chunk_id = request.get('chunk_id')
-        # This line now correctly uses the module-level STORAGE_DIR
         chunk_path = os.path.join(STORAGE_DIR, chunk_id)
 
         if request_type == 'store_chunk':
@@ -82,6 +78,43 @@ def handle_chunk_operation(conn):
             else:
                 conn.sendall(b'\x00\x00\x00\x00') # Send 0 size
                 print(f"Chunk {chunk_id} not found.")
+
+        # ==================================================
+        # 3. NEW: Handle Re-replication Request (COPY CHUNK)
+        # ==================================================
+        elif request_type == 'copy_chunk':
+            destination_ip = request.get('destination_ip')
+            destination_port = request.get('destination_port')
+            destination_addr = (destination_ip, destination_port)
+            
+            chunk_path = os.path.join(STORAGE_DIR, chunk_id)
+            
+            if os.path.exists(chunk_path):
+                # 1. Read the chunk data
+                with open(chunk_path, 'rb') as f:
+                    chunk_data = f.read()
+                file_size = len(chunk_data)
+                
+                # 2. Connect directly to the destination Datanode
+                print(f"Copying {chunk_id} to {destination_ip}:{destination_port}")
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as dest_sock:
+                    dest_sock.connect(destination_addr)
+                    
+                    # 3. Instruct destination to store the chunk
+                    send_message(dest_sock, {
+                        'type': 'store_chunk',
+                        'chunk_id': chunk_id,
+                        'size': file_size
+                    })
+                    
+                    # 4. Send the data payload
+                    dest_sock.sendall(chunk_data)
+                    
+                    # 5. Send success ACK back to the initiating Namenode connection
+                    send_message(conn, {'status': 'success', 'message': f'Copied {chunk_id} successfully'})
+            else:
+                send_message(conn, {'status': 'error', 'message': f'Chunk {chunk_id} not found locally for copy'})
+
 
     except Exception as e:
         print(f"Datanode connection error: {e}")
