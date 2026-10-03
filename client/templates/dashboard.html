@@ -3,404 +3,1638 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mini HDFS Dashboard</title>
+    <title>HDFS Control Center</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
+        :root {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --accent-blue: #3b82f6;
+            --accent-blue-light: #60a5fa;
+            --accent-green: #10b981;
+            --accent-green-dark: #059669;
+            --accent-red: #ef4444;
+            --accent-yellow: #f59e0b;
+            --accent-purple: #8b5cf6;
+            --accent-pink: #ec4899;
+            --border-color: #e2e8f0;
+            --gradient-primary: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            --gradient-danger: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            --gradient-warning: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-glow: 0 0 15px rgba(59, 130, 246, 0.2);
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             min-height: 100vh;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        
-        h1 {
-            color: white;
-            text-align: center;
-            margin-bottom: 30px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-        
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-        
-        .card h2 {
-            color: #667eea;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 10px;
-        }
-        
-        .upload-section {
             display: flex;
-            gap: 15px;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            z-index: 100;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .sidebar-header {
+            padding: 28px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-header h1 {
+            font-size: 22px;
+            font-weight: 800;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            display: flex;
             align-items: center;
+            gap: 12px;
         }
-        
-        .file-input-wrapper {
+
+        .sidebar-header h1::before {
+            content: '⚡';
+            font-size: 28px;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-items {
+            flex: 1;
+            padding: 16px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 18px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
             position: relative;
-            display: inline-block;
+            overflow: hidden;
         }
-        
-        .file-input-wrapper input[type=file] {
+
+        .nav-item::before {
+            content: '';
             position: absolute;
-            opacity: 0;
-            width: 0;
-            height: 0;
+            left: 0;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--gradient-primary);
+            border-radius: 0 4px 4px 0;
+            transform: scaleY(0);
+            transition: transform 0.3s;
         }
-        
-        .file-input-wrapper label {
-            background: #667eea;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.3s;
-            display: inline-block;
+
+        .nav-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            transform: translateX(4px);
         }
-        
-        .file-input-wrapper label:hover {
-            background: #5568d3;
+
+        .nav-item:hover::before {
+            transform: scaleY(1);
         }
-        
-        #upload-btn {
-            background: #48bb78;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            transition: background 0.3s;
+
+        .nav-item.active {
+            background: var(--bg-tertiary);
+            color: var(--accent-blue);
+            transform: translateX(4px);
         }
-        
-        #upload-btn:hover {
-            background: #38a169;
+
+        .nav-item.active::before {
+            transform: scaleY(1);
         }
-        
-        #upload-btn:disabled {
-            background: #cbd5e0;
-            cursor: not-allowed;
+
+        .nav-item::after {
+            font-size: 20px;
         }
-        
-        #file-name {
-            color: #667eea;
-            font-weight: bold;
+
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 40px;
+            overflow-y: auto;
+            background: var(--bg-primary);
         }
-        
-        table {
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+
+        .header h2 {
+            font-size: 32px;
+            font-weight: 800;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .system-health {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 24px;
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-card);
+        }
+
+        .health-indicator {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .health-indicator.healthy {
+            background: var(--accent-green);
+        }
+
+        .health-indicator.degraded {
+            background: var(--accent-yellow);
+        }
+
+        .health-indicator.critical {
+            background: var(--accent-red);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: var(--shadow-card);
+            transition: all 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .card-value {
+            font-size: 36px;
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+            line-height: 1;
+        }
+
+        .card-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .progress-bar {
             width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
+            height: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 12px;
         }
-        
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e2e8f0;
+
+        .progress-fill {
+            height: 100%;
+            background: var(--gradient-primary);
+            border-radius: 8px;
+            transition: width 0.3s ease;
         }
-        
-        th {
-            background: #f7fafc;
-            color: #4a5568;
+
+        .progress-fill.green {
+            background: var(--gradient-success);
+        }
+
+        .progress-fill.yellow {
+            background: var(--gradient-warning);
+        }
+
+        .progress-fill.red {
+            background: var(--gradient-danger);
+        }
+
+        .section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .section-header h3 {
+            font-size: 20px;
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: white;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        .btn-danger {
+            background: var(--gradient-danger);
+            color: white;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 16px;
+            padding: 48px;
+            text-align: center;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            background: var(--bg-tertiary);
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--accent-blue);
+            background: var(--bg-secondary);
+            transform: scale(1.01);
+        }
+
+        .upload-zone-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .upload-zone-text {
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-size: 16px;
             font-weight: 600;
         }
-        
+
+        .upload-zone-subtext {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        th, td {
+            padding: 18px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: var(--bg-tertiary);
+            font-weight: 700;
+            color: var(--text-primary);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        th:first-child {
+            border-top-left-radius: 12px;
+        }
+
+        th:last-child {
+            border-top-right-radius: 12px;
+        }
+
+        tr {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
         tr:hover {
-            background: #f7fafc;
+            background: var(--bg-tertiary);
+            transform: scale(1.01);
         }
-        
-        .status-badge {
+
+        .badge {
             padding: 4px 12px;
-            border-radius: 20px;
+            border-radius: 12px;
             font-size: 12px;
-            font-weight: bold;
-            display: inline-block;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        
-        .status-alive {
-            background: #c6f6d5;
-            color: #22543d;
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
         }
-        
-        .status-dead {
-            background: #fed7d7;
-            color: #742a2a;
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-yellow);
         }
-        
-        .chunk-info {
-            background: #edf2f7;
-            padding: 8px;
-            border-radius: 6px;
-            margin: 5px 0;
+
+        .badge-error {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+        }
+
+        .datanode-card {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .datanode-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border-color: var(--accent-blue);
+        }
+
+        .datanode-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .datanode-id {
+            font-weight: 600;
+            color: var(--text-primary);
             font-size: 14px;
         }
-        
-        .download-btn {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 6px 16px;
+
+        .datanode-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .metric {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .metric-value {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .chunk-visual {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        .chunk-block {
+            width: 24px;
+            height: 24px;
             border-radius: 6px;
-            cursor: pointer;
-            transition: background 0.3s;
-            font-size: 14px;
-        }
-        
-        .download-btn:hover {
-            background: #5568d3;
-        }
-        
-        .refresh-btn {
-            background: #4299e1;
+            background: var(--accent-blue);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
             color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            float: right;
-            margin-bottom: 10px;
-            transition: background 0.3s;
         }
-        
-        .refresh-btn:hover {
-            background: #3182ce;
+
+        .chunk-block.replica-a {
+            background: var(--accent-blue);
         }
-        
+
+        .chunk-block.replica-b {
+            background: var(--accent-green);
+        }
+
+        .chunk-block.missing {
+            background: var(--accent-red);
+        }
+
         .loading {
             text-align: center;
-            padding: 20px;
-            color: #667eea;
+            padding: 48px;
+            color: var(--text-secondary);
         }
-        
-        .message {
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
         }
-        
-        .message-success {
-            background: #c6f6d5;
-            color: #22543d;
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
-        
-        .message-error {
-            background: #fed7d7;
-            color: #742a2a;
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 16px 24px;
+            border-radius: 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
         }
+
+        .toast.success {
+            border-color: var(--accent-green);
+        }
+
+        .toast.error {
+            border-color: var(--accent-red);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .search-box {
+            width: 100%;
+            max-width: 400px;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .search-box::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            animation: modalIn 0.3s ease;
+        }
+
+        @keyframes modalIn {
+            from {
+                transform: scale(0.95) translateY(10px);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal h3 {
+            margin-bottom: 24px;
+            font-size: 20px;
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .modal input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 14px;
+            margin-bottom: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .modal input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .directory-breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+        }
+
+        .breadcrumb-item {
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .breadcrumb-item:hover {
+            color: var(--accent-blue);
+        }
+
+        .breadcrumb-separator {
+            color: var(--border-color);
+            font-weight: 600;
+        }
+
+        .event-section {
+            overflow: hidden;
+            position: relative;
+            background: #172033;
+            border-color: #26334b;
+            color: #e8eef8;
+        }
+
+        .event-section .section-header h3 {
+            background: none;
+            color: #f4f7fb;
+            -webkit-text-fill-color: initial;
+        }
+
+        .event-section .btn-secondary {
+            background: #26334b;
+            border-color: #3b4a66;
+            color: #e8eef8;
+        }
+
+        .event-visual {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            gap: 26px;
+            align-items: center;
+            padding: 18px 0 24px;
+            border-top: 1px solid #2d3a52;
+            border-bottom: 1px solid #2d3a52;
+            margin-bottom: 18px;
+        }
+
+        .cluster-map {
+            height: 112px;
+            border: 1px solid #34435e;
+            border-radius: 14px;
+            position: relative;
+            background: radial-gradient(circle at 50% 50%, #2d4164 0 7%, transparent 8%), #1d293e;
+        }
+
+        .cluster-map::before,
+        .cluster-map::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 64px;
+            height: 1px;
+            background: #5a769e;
+            transform-origin: left center;
+        }
+
+        .cluster-map::before { transform: rotate(28deg); }
+        .cluster-map::after { transform: rotate(152deg); }
+
+        .map-node {
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            display: grid;
+            place-items: center;
+            border-radius: 9px;
+            color: #142033;
+            font-size: 12px;
+            font-weight: 800;
+            box-shadow: 0 0 0 5px rgba(255,255,255,.04);
+        }
+
+        .map-node.center { left: calc(50% - 14px); top: calc(50% - 14px); background: #f8c15c; }
+        .map-node.left { left: 16px; top: 70px; background: #70d6a1; }
+        .map-node.right { right: 16px; top: 16px; background: #72b7ff; }
+
+        .event-visual-copy strong { display: block; font-size: 15px; margin-bottom: 6px; }
+        .event-visual-copy span { color: #aab8ce; font-size: 13px; line-height: 1.5; }
+
+        .event-list { max-height: 286px; overflow: auto; padding-right: 6px; }
+
+        .event-row {
+            display: grid;
+            grid-template-columns: 30px 1fr auto;
+            gap: 12px;
+            align-items: center;
+            padding: 11px 4px;
+            border-bottom: 1px solid #29364c;
+        }
+
+        .event-row:last-child { border-bottom: 0; }
+        .event-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: #263d57; color: #8fc5ff; font-size: 13px; }
+        .event-row strong { color: #f5f8fc; font-size: 13px; }
+        .event-row small { color: #9dadc4; font-size: 11px; }
+        .event-node { color: #8fc5ff; font-size: 12px; white-space: nowrap; }
+
+        @media (max-width: 720px) {
+            .event-visual { grid-template-columns: 1fr; }
+            .cluster-map { max-width: 220px; }
+            .main-content { padding: 24px 16px; margin-left: 0; }
+            .sidebar { width: 72px; }
+            .sidebar-header h1 { font-size: 0; justify-content: center; }
+            .nav-item { justify-content: center; padding: 14px 8px; font-size: 0; }
+        }
+
+        /* Command-center visual system */
+        :root {
+            --bg-primary: #eef2f1;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f7f6;
+            --text-primary: #17252b;
+            --text-secondary: #65767a;
+            --accent-blue: #147d91;
+            --accent-blue-light: #5eb6c2;
+            --accent-green: #299b73;
+            --accent-green-dark: #18785a;
+            --accent-red: #cf5b50;
+            --accent-yellow: #d99435;
+            --border-color: #d9e2df;
+            --gradient-primary: linear-gradient(135deg, #147d91, #1d9b91);
+            --gradient-success: linear-gradient(135deg, #299b73, #58b689);
+            --gradient-danger: linear-gradient(135deg, #cf5b50, #e17a61);
+            --gradient-warning: linear-gradient(135deg, #d99435, #e8b35a);
+            --shadow-card: 0 10px 30px rgba(25, 49, 52, .07);
+        }
+
+        body {
+            font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+            background: var(--bg-primary);
+            background-image: linear-gradient(rgba(255,255,255,.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.35) 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+
+        .sidebar {
+            width: 248px;
+            background: #162b32;
+            border-right: 0;
+            box-shadow: 12px 0 32px rgba(19, 42, 46, .12);
+        }
+
+        .sidebar-header { padding: 30px 24px 26px; border-bottom: 1px solid rgba(255,255,255,.12); }
+        .sidebar-header h1 { color: #f5fbf8; background: none; -webkit-text-fill-color: initial; font-size: 19px; letter-spacing: -.3px; }
+        .sidebar-header h1::before { content: '⬡'; color: #f2b857; -webkit-text-fill-color: #f2b857; }
+        .nav-items { padding: 22px 14px; }
+        .nav-item { color: #9bb1b2; border-radius: 8px; margin-bottom: 5px; padding: 13px 15px; }
+        .nav-item:hover { background: rgba(255,255,255,.08); color: #fff; transform: translateX(3px); }
+        .nav-item.active { background: #e7b45a; color: #172b30; transform: translateX(3px); }
+        .nav-item::before { display: none; }
+
+        .main-content { margin-left: 248px; padding: 34px 44px 54px; }
+        .header { margin-bottom: 30px; align-items: flex-end; }
+        .header h2 { color: var(--text-primary); background: none; -webkit-text-fill-color: initial; font-size: 34px; letter-spacing: -1px; }
+        .header-copy::before { content: 'DISTRIBUTED STORAGE / LIVE OPERATIONS'; display: block; color: var(--accent-blue); font-size: 11px; font-weight: 700; letter-spacing: 1.6px; margin-bottom: 8px; }
+        .header-copy::after { content: 'Monitor placement, storage health, and event flow from one place.'; display: block; color: var(--text-secondary); font-size: 13px; margin-top: 7px; }
+        .system-health { padding: 10px 15px; border-radius: 8px; box-shadow: none; background: rgba(255,255,255,.8); }
+        .health-indicator { width: 9px; height: 9px; }
+
+        .dashboard-hero {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 230px;
+            gap: 25px;
+            align-items: stretch;
+            margin-bottom: 26px;
+            padding: 28px 30px;
+            color: #edf8f5;
+            background: #1b3c42;
+            border-radius: 12px;
+            box-shadow: 0 14px 34px rgba(24, 60, 66, .16);
+            overflow: hidden;
+        }
+        .dashboard-hero h3 { font-size: 25px; letter-spacing: -.5px; margin-bottom: 8px; }
+        .dashboard-hero p { color: #b8d1cd; max-width: 620px; line-height: 1.55; font-size: 14px; }
+        .hero-kicker { color: #f0be61; font-size: 11px; font-weight: 700; letter-spacing: 1.4px; margin-bottom: 13px; }
+        .hero-stat { align-self: center; border-left: 1px solid rgba(255,255,255,.18); padding-left: 24px; }
+        .hero-stat strong { display: block; color: #f4c56e; font-size: 38px; line-height: 1; }
+        .hero-stat span { display: block; color: #b8d1cd; font-size: 12px; margin-top: 8px; }
+
+        .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 22px; }
+        .card { border-radius: 10px; padding: 22px; box-shadow: var(--shadow-card); }
+        #dashboard-section > .grid .card { position: relative; overflow: hidden; }
+        #dashboard-section > .grid .card::before { content: ''; position: absolute; inset: 0 0 auto; height: 3px; background: var(--accent-blue); }
+        #dashboard-section > .grid .card:nth-child(2)::before { background: var(--accent-green); }
+        #dashboard-section > .grid .card:nth-child(3)::before { background: var(--accent-yellow); }
+        #dashboard-section > .grid .card:nth-child(4)::before { background: #6e83a8; }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(25, 49, 52, .11); }
+        .card-header { margin-bottom: 17px; }
+        .card-header h3 { color: var(--text-secondary); letter-spacing: 1.1px; font-size: 11px; }
+        .card-value { color: var(--accent-blue); background: none; -webkit-text-fill-color: initial; font-size: 32px; }
+        .card-label { font-size: 12px; }
+        .section { border-radius: 10px; padding: 24px; box-shadow: var(--shadow-card); }
+        .section-header { margin-bottom: 19px; }
+        .section-header h3 { color: var(--text-primary); background: none; -webkit-text-fill-color: initial; font-size: 18px; }
+        .btn { border-radius: 7px; padding: 9px 15px; }
+        .btn-primary { background: var(--accent-blue); box-shadow: none; }
+        .btn-secondary { background: #f0f5f3; border-color: #d7e4df; }
+        .upload-zone { border-radius: 10px; background: repeating-linear-gradient(-45deg, #f3f8f5, #f3f8f5 10px, #eef5f1 10px, #eef5f1 20px); }
+        .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent-blue); transform: none; }
+        th { background: #edf4f1; color: #496267; }
+        tr:hover { background: #f3f8f5; transform: none; }
+        .datanode-card { border-radius: 9px; background: #f5f8f7; }
+
+        @media (max-width: 1050px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dashboard-hero { grid-template-columns: 1fr; } .hero-stat { border-left: 0; border-top: 1px solid rgba(255,255,255,.18); padding: 18px 0 0; } }
+
+        .datanode-details-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+        .node-detail-card { overflow: hidden; padding: 0; border: 1px solid var(--border-color); background: #fff; }
+        .node-detail-top { padding: 19px 20px 17px; background: #eff5f2; border-bottom: 1px solid var(--border-color); }
+        .node-detail-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+        .node-detail-name { color: var(--text-primary); font-size: 18px; font-weight: 800; letter-spacing: -.4px; }
+        .node-detail-role { color: var(--accent-blue); font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-top: 5px; }
+        .node-detail-address { color: var(--text-secondary); font-family: Consolas, monospace; font-size: 12px; margin-top: 14px; }
+        .node-detail-body { padding: 18px 20px 20px; }
+        .node-detail-capacity { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+        .node-detail-capacity strong { font-size: 22px; color: var(--text-primary); }
+        .node-detail-capacity span { color: var(--text-secondary); font-size: 11px; }
+        .node-detail-progress { height: 7px; margin: 0 0 18px; }
+        .node-detail-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .node-stat { padding-top: 11px; border-top: 1px solid var(--border-color); }
+        .node-stat-label { color: var(--text-secondary); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .7px; }
+        .node-stat-value { color: var(--text-primary); display: block; font-size: 14px; font-weight: 700; margin-top: 4px; }
+        .node-heartbeat { display: flex; align-items: center; gap: 7px; color: var(--accent-green-dark); font-size: 12px; font-weight: 700; margin-top: 16px; }
+        .node-heartbeat::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+        .node-detail-card.is-dead .node-detail-top { background: #fbf0ed; }
+        .node-detail-card.is-dead .node-heartbeat { color: var(--accent-red); }
+        .node-detail-card.is-dead .node-heartbeat::before { background: var(--accent-red); }
+        @media (max-width: 1050px) { .datanode-details-grid { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 650px) { .datanode-details-grid { grid-template-columns: 1fr; } }
+
+        .workflow-intro { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin: -8px 0 22px; }
+        .workflow-intro h3 { color: var(--text-primary); font-size: 22px; letter-spacing: -.5px; }
+        .workflow-intro p { color: var(--text-secondary); font-size: 13px; line-height: 1.5; margin-top: 6px; max-width: 620px; }
+        .workflow-note { color: var(--accent-blue); font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
+        .files-toolbar { display: flex; align-items: center; gap: 10px; }
+        .files-toolbar .search-box { min-width: 220px; }
+        .files-content-shell { overflow-x: auto; }
+        .files-content-shell table { min-width: 930px; }
+        .file-name-cell { display: flex; align-items: center; gap: 10px; }
+        .file-glyph { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: #e9f2ef; color: var(--accent-blue); font-size: 15px; }
+        .file-placement { color: var(--text-secondary); font-size: 11px; line-height: 1.5; max-width: 260px; }
+        .upload-shell { max-width: 930px; }
+        .upload-panel { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 22px; align-items: stretch; }
+        .upload-zone { min-height: 300px; display: grid; place-content: center; }
+        .upload-zone-icon { width: 74px; height: 74px; display: grid; place-items: center; margin: 0 auto 18px; border-radius: 22px; background: #e0f0ed; color: var(--accent-blue); font-size: 36px; }
+        .upload-sidecard { padding: 20px; border-radius: 10px; background: #eff5f2; border: 1px solid var(--border-color); }
+        .upload-sidecard h4 { color: var(--text-primary); font-size: 14px; margin-bottom: 13px; }
+        .upload-sidecard p { color: var(--text-secondary); font-size: 12px; line-height: 1.6; margin-bottom: 15px; }
+        .upload-rule { display: flex; gap: 8px; align-items: flex-start; color: var(--text-primary); font-size: 12px; margin: 11px 0; }
+        .upload-rule::before { content: '✓'; color: var(--accent-green-dark); font-weight: 800; }
+        .upload-progress-card { margin-top: 22px; padding: 17px 19px; border: 1px solid var(--border-color); border-radius: 9px; background: #fbfdfc; }
+        .upload-progress-card > div:first-child { color: var(--text-primary); font-size: 13px; font-weight: 700; }
+        @media (max-width: 760px) { .workflow-intro { display: block; } .workflow-note { display: block; margin-top: 12px; } .files-toolbar { margin-top: 14px; } .files-toolbar .search-box { min-width: 0; width: 100%; } .upload-panel { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🐳 Mini HDFS Dashboard</h1>
-        
-        <div class="card">
-            <h2>Upload File</h2>
-            <div class="upload-section">
-                <div class="file-input-wrapper">
-                    <input type="file" id="file-input" onchange="handleFileSelect(event)">
-                    <label for="file-input">📁 Choose File</label>
-                </div>
-                <span id="file-name">No file selected</span>
-                <button id="upload-btn" onclick="uploadFile()" disabled>⬆️ Upload</button>
-            </div>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h1>HDFS Control Center</h1>
         </div>
-        
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h2>Stored Files</h2>
-                <button class="refresh-btn" onclick="loadFiles()">🔄 Refresh</button>
-            </div>
-            <div id="messages"></div>
-            <div id="files-loading" class="loading">Loading...</div>
-            <table id="files-table" style="display: none;">
-                <thead>
-                    <tr>
-                        <th>Filename</th>
-                        <th>Chunks</th>
-                        <th>Datanodes</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody id="files-tbody">
-                </tbody>
-            </table>
-        </div>
-        
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h2>System Status</h2>
-                <button class="refresh-btn" onclick="loadStatus()">🔄 Refresh</button>
-            </div>
-            <div id="status-loading" class="loading">Loading...</div>
-            <div id="status-content" style="display: none;"></div>
+        <div class="nav-items">
+            <div class="nav-item active" onclick="showSection('dashboard')">📊 Dashboard</div>
+            <div class="nav-item" onclick="showSection('files')">📁 Files</div>
+            <div class="nav-item" onclick="showSection('datanodes')">🖥️ DataNodes</div>
+            <div class="nav-item" onclick="showSection('upload')">⬆️ Upload</div>
         </div>
     </div>
-    
+
+    <div class="main-content">
+        <div class="header">
+            <div class="header-copy">
+                <h2 id="page-title">Dashboard</h2>
+            </div>
+            <div class="system-health">
+                <div class="health-indicator" id="health-indicator"></div>
+                <span id="health-status">Loading...</span>
+            </div>
+        </div>
+
+        <div id="dashboard-section">
+            <div class="dashboard-hero">
+                <div>
+                    <div class="hero-kicker">CLUSTER OVERVIEW</div>
+                    <h3>One view of your storage fabric.</h3>
+                    <p>Track files, chunks, replicas, and node health while Kafka carries the operational signal in the background.</p>
+                </div>
+                <div class="hero-stat">
+                    <strong id="hero-replication">RF 2</strong>
+                    <span>target replicas per chunk</span>
+                </div>
+            </div>
+            <div class="grid">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Total Files</h3>
+                    </div>
+                    <div class="card-value" id="total-files">0</div>
+                    <div class="card-label">Files stored in HDFS</div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Total Chunks</h3>
+                    </div>
+                    <div class="card-value" id="total-chunks">0</div>
+                    <div class="card-label">Data blocks across all DataNodes</div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Storage Used</h3>
+                    </div>
+                    <div class="card-value" id="storage-used">0 MB</div>
+                    <div class="card-label">Total storage consumption</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="storage-progress" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>DataNodes</h3>
+                    </div>
+                    <div class="card-value" id="alive-datanodes">0/0</div>
+                    <div class="card-label">Active DataNodes</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <h3>DataNode Status</h3>
+                    <button class="btn btn-secondary" onclick="loadStatus()">🔄 Refresh</button>
+                </div>
+                <div id="datanodes-loading" class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading DataNode status...</p>
+                </div>
+                <div id="datanodes-content" class="hidden"></div>
+            </div>
+
+            <div class="section event-section">
+                <div class="section-header">
+                    <h3>Kafka Events</h3>
+                    <button class="btn btn-secondary" onclick="loadEvents()">Refresh</button>
+                </div>
+                <div class="event-visual">
+                    <div class="cluster-map" aria-label="NameNode connected to three DataNodes">
+                        <span class="map-node center">NN</span>
+                        <span class="map-node left">D1</span>
+                        <span class="map-node right">D3</span>
+                    </div>
+                    <div class="event-visual-copy">
+                        <strong>Live cluster signal</strong>
+                        <span>Metadata events arrive from the NameNode and DataNodes. File bytes remain on the HDFS socket path.</span>
+                    </div>
+                </div>
+                <div id="events-content" class="event-list">
+                    <p style="color: #aab8ce;">Loading events...</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="files-section" class="hidden">
+            <div class="section">
+                <div class="section-header">
+                    <h3>File Browser</h3>
+                    <div class="files-toolbar">
+                        <input type="text" class="search-box" placeholder="Search files..." id="file-search" onkeyup="filterFiles()">
+                        <button class="btn btn-secondary" onclick="loadFiles()">🔄 Refresh</button>
+                    </div>
+                </div>
+                <div class="workflow-intro">
+                    <div><h3>Files, replicas, and placement</h3><p>Inspect how each file is divided and where its chunks live across local storage and AWS.</p></div>
+                    <span class="workflow-note">Metadata view</span>
+                </div>
+                <div class="directory-breadcrumb" id="directory-breadcrumb">
+                    <span class="breadcrumb-item" onclick="navigateToDirectory('')">🏠 Root</span>
+                </div>
+                <div id="files-loading" class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading files...</p>
+                </div>
+                <div id="files-content" class="files-content-shell hidden">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Size</th>
+                                <th>Chunks</th>
+                                <th>Replication</th>
+                                <th>Placement</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="files-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="datanodes-section" class="hidden">
+            <div class="section">
+                <div class="section-header">
+                    <h3>DataNode Details</h3>
+                    <button class="btn btn-secondary" onclick="loadStatus()">🔄 Refresh</button>
+                </div>
+                <div id="datanode-details-loading" class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading DataNode details...</p>
+                </div>
+                <div id="datanode-details-content" class="hidden"></div>
+            </div>
+        </div>
+
+        <div id="upload-section" class="hidden">
+            <div class="section upload-shell">
+                <div class="section-header">
+                    <h3>Upload File</h3>
+                </div>
+                <div class="workflow-intro">
+                    <div><h3>Send data into the cluster</h3><p>Files are split into 2 MB chunks, written to DataNodes, verified, and replicated through the existing HDFS data path.</p></div>
+                    <span class="workflow-note">Socket data path</span>
+                </div>
+                <div class="upload-panel">
+                    <div>
+                        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+                            <div class="upload-zone-icon">↥</div>
+                            <div class="upload-zone-text">Drop files here or choose from your computer</div>
+                            <div class="upload-zone-subtext">Files and folders supported</div>
+                            <input type="file" id="file-input" style="display: none" multiple onchange="handleFileSelect(event)">
+                            <input type="file" id="folder-input" style="display: none" webkitdirectory onchange="handleFileSelect(event)">
+                        </div>
+                        <button class="btn btn-secondary" type="button" onclick="document.getElementById('folder-input').click()">Choose Folder</button>
+                    </div>
+                    <aside class="upload-sidecard">
+                        <h4>What happens next</h4>
+                        <p>The cluster keeps the NameNode metadata authoritative while DataNodes hold the actual chunks.</p>
+                        <div class="upload-rule">Split into 2 MB chunks</div>
+                        <div class="upload-rule">Write and verify replicas</div>
+                        <div class="upload-rule">Show placement in Files</div>
+                    </aside>
+                </div>
+                <div id="upload-progress" class="upload-progress-card hidden">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span id="upload-filename">filename.txt</span>
+                        <span id="upload-percentage">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="upload-progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="rename-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3>Rename File</h3>
+            <input type="text" id="rename-input" placeholder="Enter new filename">
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeRenameModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmRename()">Rename</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="delete-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3>Delete File</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 16px;">Are you sure you want to delete <strong id="delete-filename"></strong>? This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        let currentDirectory = '';
         let selectedFile = null;
-        
-        function handleFileSelect(event) {
-            selectedFile = event.target.files[0];
-            document.getElementById('file-name').textContent = selectedFile ? selectedFile.name : 'No file selected';
-            document.getElementById('upload-btn').disabled = !selectedFile;
+        let fileToDelete = null;
+        let fileToRename = null;
+        let autoRefreshInterval = null;
+
+        const uploadZone = document.getElementById('upload-zone');
+        uploadZone.addEventListener('dragover', event => {
+            event.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        uploadZone.addEventListener('drop', event => {
+            event.preventDefault();
+            uploadZone.classList.remove('dragover');
+            uploadFiles(Array.from(event.dataTransfer.files || []));
+        });
+
+        function showSection(section) {
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            event.target.classList.add('active');
+
+            document.getElementById('dashboard-section').classList.add('hidden');
+            document.getElementById('files-section').classList.add('hidden');
+            document.getElementById('datanodes-section').classList.add('hidden');
+            document.getElementById('upload-section').classList.add('hidden');
+
+            document.getElementById(section + '-section').classList.remove('hidden');
+
+            const titles = {
+                'dashboard': 'Dashboard',
+                'files': 'File Browser',
+                'datanodes': 'DataNode Details',
+                'upload': 'Upload File'
+            };
+            document.getElementById('page-title').textContent = titles[section];
+
+            if (section === 'dashboard' || section === 'datanodes') {
+                loadStatus();
+            } else if (section === 'files') {
+                loadFiles();
+            }
         }
-        
-        async function uploadFile() {
-            if (!selectedFile) return;
-            
+
+        async function loadStatus() {
+            document.getElementById('datanodes-loading').classList.remove('hidden');
+            document.getElementById('datanodes-content').classList.add('hidden');
+            document.getElementById('datanode-details-loading').classList.remove('hidden');
+            document.getElementById('datanode-details-content').classList.add('hidden');
+
+            try {
+                const response = await fetch('/api/status');
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    updateDashboard(result);
+                    updateDataNodes(result);
+                } else {
+                    showToast('Error loading system status', 'error');
+                }
+            } catch (error) {
+                showToast('Error connecting to NameNode', 'error');
+            } finally {
+                document.getElementById('datanodes-loading').classList.add('hidden');
+                document.getElementById('datanode-details-loading').classList.add('hidden');
+            }
+        }
+
+        async function loadEvents() {
+            const content = document.getElementById('events-content');
+            try {
+                const response = await fetch('/api/events');
+                const result = await response.json();
+                const events = result.events || [];
+                const eventIcon = event => {
+                    if (event.event_type.includes('heartbeat')) return '♥';
+                    if (event.event_type.includes('replication')) return '↗';
+                    if (event.event_type.includes('chunk')) return '▦';
+                    if (event.event_type.includes('failed')) return '!';
+                    return '•';
+                };
+                content.innerHTML = events.length
+                    ? events.map(event => `<div class="event-row"><span class="event-icon">${eventIcon(event)}</span><div><strong>${event.event_type}</strong><br><small>${event.timestamp}</small></div><span class="event-node">${event.node_id || 'NameNode'}</span></div>`).join('')
+                    : '<p style="color: #aab8ce;">No Kafka events received.</p>';
+            } catch (error) {
+                content.innerHTML = '<p style="color: #aab8ce;">Kafka event feed unavailable.</p>';
+            }
+        }
+
+        function updateDashboard(data) {
+            const stats = data.statistics || {};
+            const system = data.system || {};
+
+            document.getElementById('total-files').textContent = stats.total_files || 0;
+            document.getElementById('total-chunks').textContent = stats.total_chunks || 0;
+
+            const storageUsed = (stats.total_storage_bytes || 0) / (1024 * 1024);
+            document.getElementById('storage-used').textContent = storageUsed.toFixed(2) + ' MB';
+
+            const alive = stats.alive_datanodes || 0;
+            const total = stats.total_datanodes || 0;
+            document.getElementById('alive-datanodes').textContent = `${alive}/${total}`;
+
+            const health = system.health || 'unknown';
+            const indicator = document.getElementById('health-indicator');
+            indicator.className = 'health-indicator ' + health;
+            document.getElementById('health-status').textContent = health.charAt(0).toUpperCase() + health.slice(1);
+        }
+
+        function updateDataNodes(data) {
+            const datanodes = data.datanodes || [];
+            const content = document.getElementById('datanodes-content');
+            const detailsContent = document.getElementById('datanode-details-content');
+
+            if (datanodes.length === 0) {
+                content.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🖥️</div><p>No DataNodes registered</p></div>';
+                detailsContent.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🖥️</div><p>No DataNodes registered</p></div>';
+                content.classList.remove('hidden');
+                detailsContent.classList.remove('hidden');
+                return;
+            }
+
+            let html = '';
+            let detailsHtml = '<div class="datanode-details-grid">';
+
+            datanodes.forEach(dn => {
+                const status = dn.status || 'unknown';
+                const statusClass = status === 'ALIVE' ? 'badge-success' : 'badge-error';
+                const capacity = dn.capacity || {};
+                const usedPercent = capacity.total_bytes ? ((capacity.used_bytes / capacity.total_bytes) * 100).toFixed(1) : 0;
+                const isAws = (dn.address || '').includes('100.114.20.84');
+                const role = isAws ? 'AWS storage node' : 'Local storage node';
+                const heartbeat = status === 'ALIVE' ? formatTime(dn.last_check) : 'No recent heartbeat';
+
+                html += `
+                    <div class="datanode-card">
+                        <div class="datanode-header">
+                            <span class="datanode-id">${dn.id || 'Unknown'}</span>
+                            <span class="badge ${statusClass}">${status}</span>
+                        </div>
+                        <div class="datanode-metrics">
+                            <div class="metric">Address: <span class="metric-value">${dn.address || 'N/A'}</span></div>
+                            <div class="metric">Chunks: <span class="metric-value">${dn.chunk_count || 0}</span></div>
+                            <div class="metric">Storage: <span class="metric-value">${usedPercent}% used</span></div>
+                            <div class="metric">Last Check: <span class="metric-value">${formatTime(dn.last_check)}</span></div>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill ${usedPercent > 80 ? 'red' : usedPercent > 60 ? 'yellow' : 'green'}" style="width: ${usedPercent}%"></div>
+                        </div>
+                    </div>
+                `;
+
+                detailsHtml += `
+                    <article class="card node-detail-card ${status !== 'ALIVE' ? 'is-dead' : ''}">
+                        <div class="node-detail-top">
+                            <div class="node-detail-heading">
+                                <div>
+                                    <div class="node-detail-name">${dn.id || 'Unknown'}</div>
+                                    <div class="node-detail-role">${role}</div>
+                                </div>
+                                <span class="badge ${statusClass}">${status}</span>
+                            </div>
+                            <div class="node-detail-address">${dn.address || 'N/A'}</div>
+                        </div>
+                        <div class="node-detail-body">
+                            <div class="node-detail-capacity">
+                                <strong>${usedPercent}%</strong>
+                                <span>${formatBytes(capacity.used_bytes || 0)} of ${formatBytes(capacity.total_bytes || 0)}</span>
+                            </div>
+                            <div class="progress-bar node-detail-progress">
+                                <div class="progress-fill ${usedPercent > 80 ? 'red' : usedPercent > 60 ? 'yellow' : 'green'}" style="width: ${usedPercent}%"></div>
+                            </div>
+                            <div class="node-detail-stats">
+                                <div class="node-stat"><span class="node-stat-label">Chunks stored</span><span class="node-stat-value">${dn.chunk_count || 0}</span></div>
+                                <div class="node-stat"><span class="node-stat-label">Free space</span><span class="node-stat-value">${formatBytes(capacity.free_bytes || 0)}</span></div>
+                            </div>
+                            <div class="node-heartbeat">${heartbeat}</div>
+                        </div>
+                    </article>
+                `;
+            });
+
+            detailsHtml += '</div>';
+
+            content.innerHTML = html;
+            detailsContent.innerHTML = detailsHtml;
+            content.classList.remove('hidden');
+            detailsContent.classList.remove('hidden');
+        }
+
+        async function loadFiles() {
+            document.getElementById('files-loading').classList.remove('hidden');
+            document.getElementById('files-content').classList.add('hidden');
+
+            try {
+                const response = await fetch('/api/directories/' + currentDirectory);
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    renderFiles(result.contents || []);
+                } else {
+                    showToast('Error loading files', 'error');
+                }
+            } catch (error) {
+                showToast('Error connecting to NameNode', 'error');
+            } finally {
+                document.getElementById('files-loading').classList.add('hidden');
+            }
+        }
+
+        function renderFiles(files) {
+            const tbody = document.getElementById('files-table-body');
+            tbody.innerHTML = '';
+
+            if (files.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 48px;"><div class="empty-state-icon">📁</div><div style="color: var(--text-secondary);">No files in this directory</div></td></tr>';
+                document.getElementById('files-content').classList.remove('hidden');
+                return;
+            }
+
+            files.forEach(file => {
+                const isDirectory = file.type === 'directory';
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <div class="file-name-cell"><span class="file-glyph">${isDirectory ? '▰' : '▤'}</span><strong>${file.name}</strong></div>
+                    </td>
+                    <td><span class="badge ${isDirectory ? 'badge-warning' : 'badge-success'}">${file.type}</span></td>
+                    <td>${isDirectory ? '-' : formatBytes(file.size || 0)}</td>
+                    <td>${isDirectory ? '-' : (file.chunks || 0)}</td>
+                    <td>${isDirectory ? '-' : (file.replication || 'Unknown')}</td>
+                    <td>${isDirectory ? '-' : `<strong>${file.replication_status || 'UNKNOWN'}</strong><br><small class="file-placement">${file.replica_distribution || 'No replicas reported'}</small>`}</td>
+                    <td>
+                        ${isDirectory ?
+                            `<button class="btn btn-secondary" onclick="navigateToDirectory('${file.name}')">Open</button>` :
+                            `<button class="btn btn-primary" onclick="downloadFile('${file.name}')">Download</button>
+                             <button class="btn btn-secondary" onclick="openRenameModal('${file.name}')">Rename</button>
+                             <button class="btn btn-danger" onclick="openDeleteModal('${file.name}')">Delete</button>`
+                        }
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('files-content').classList.remove('hidden');
+        }
+
+        function filterFiles() {
+            const search = document.getElementById('file-search').value.toLowerCase();
+            const rows = document.querySelectorAll('#files-table-body tr');
+            rows.forEach(row => {
+                const name = row.querySelector('td').textContent.toLowerCase();
+                row.style.display = name.includes(search) ? '' : 'none';
+            });
+        }
+
+        function navigateToDirectory(path) {
+            currentDirectory = path;
+            updateBreadcrumb();
+            loadFiles();
+        }
+
+        function updateBreadcrumb() {
+            const breadcrumb = document.getElementById('directory-breadcrumb');
+            const parts = currentDirectory.split('/').filter(p => p);
+            let html = '<span class="breadcrumb-item" onclick="navigateToDirectory(\'\')">🏠 Root</span>';
+
+            let currentPath = '';
+            parts.forEach((part, index) => {
+                currentPath += part + '/';
+                html += '<span class="breadcrumb-separator">/</span>';
+                html += `<span class="breadcrumb-item" onclick="navigateToDirectory('${currentPath}')">${part}</span>`;
+            });
+
+            breadcrumb.innerHTML = html;
+        }
+
+        function handleFileSelect(event) {
+            const files = Array.from(event.target.files || []);
+            if (files.length) {
+                uploadFiles(files);
+            }
+        }
+
+        async function uploadFiles(files) {
+            for (const file of files) {
+                await uploadFile(file);
+            }
+            loadFiles();
+        }
+
+        async function uploadFile(file) {
             const formData = new FormData();
-            formData.append('file', selectedFile);
-            
-            document.getElementById('upload-btn').disabled = true;
-            document.getElementById('upload-btn').textContent = '⏳ Uploading...';
-            
+            formData.append('file', file);
+
+            document.getElementById('upload-progress').classList.remove('hidden');
+            document.getElementById('upload-filename').textContent = file.name;
+            document.getElementById('upload-progress-fill').style.width = '0%';
+            document.getElementById('upload-percentage').textContent = '0%';
+
             try {
                 const response = await fetch('/api/upload', {
                     method: 'POST',
                     body: formData
                 });
-                
+
                 const result = await response.json();
-                
-                showMessage(result.status === 'success' ? 'File uploaded successfully!' : 'Error: ' + result.message, result.status);
-                
-                if (result.status === 'success') {
-                    document.getElementById('file-input').value = '';
-                    document.getElementById('file-name').textContent = 'No file selected';
-                    selectedFile = null;
-                    loadFiles();
-                    loadStatus();
-                }
-            } catch (error) {
-                showMessage('Error uploading file: ' + error.message, 'error');
-            } finally {
-                document.getElementById('upload-btn').disabled = false;
-                document.getElementById('upload-btn').textContent = '⬆️ Upload';
-            }
-        }
-        
-        async function loadFiles() {
-            document.getElementById('files-loading').style.display = 'block';
-            document.getElementById('files-table').style.display = 'none';
-            
-            try {
-                const response = await fetch('/api/files');
-                const result = await response.json();
-                
-                const tbody = document.getElementById('files-tbody');
-                tbody.innerHTML = '';
-                
-                if (result.status === 'success' && result.files.length > 0) {
-                    // Note: This simple listing doesn't show chunks/datanodes in the first table.
-                    // The 'System Status' table handles the detailed visualization.
-                    result.files.forEach(filename => {
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td><strong>${filename}</strong></td>
-                            <td>-</td>
-                            <td>-</td>
-                            <td><button class="download-btn" onclick="downloadFile('${filename}')">⬇️ Download</button></td>
-                        `;
-                        tbody.appendChild(row);
-                    });
-                    
-                    document.getElementById('files-table').style.display = 'table';
-                } else {
-                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #718096;">No files stored</td></tr>';
-                    document.getElementById('files-table').style.display = 'table';
-                }
-            } catch (error) {
-                showMessage('Error loading files: ' + error.message, 'error');
-            } finally {
-                document.getElementById('files-loading').style.display = 'none';
-            }
-        }
-        
-        async function loadStatus() {
-            document.getElementById('status-loading').style.display = 'block';
-            document.getElementById('status-content').style.display = 'none';
-            
-            try {
-                const response = await fetch('/api/status');
-                const result = await response.json();
-                
-                const content = document.getElementById('status-content');
-                
-                if (result.status === 'success') {
-                    let html = '<table><thead><tr><th>Filename</th><th>Chunks</th><th>Datanodes</th></tr></thead><tbody>';
-                    
-                    if (result.files.length === 0) {
-                        html += '<tr><td colspan="3" style="text-align: center; color: #718096;">No files stored</td></tr>';
-                    } else {
-                        result.files.forEach(file => {
-                            html += `<tr><td><strong>${file.filename}</strong></td><td>${file.chunks.length}</td><td>`;
-                            
-                            file.chunks.forEach((chunk, idx) => {
-                                html += `<div class="chunk-info">Chunk ${idx + 1}: `;
-                                chunk.datanodes.forEach(dn => {
-                                    // Use the datanode_status provided by the Namenode
-                                    const status = chunk.datanode_status?.[dn] || 'unknown'; 
-                                    html += `<span class="status-badge status-${status}">DN-${dn}</span> `;
-                                });
-                                html += '</div>';
-                            });
-                            
-                            html += '</td></tr>';
-                        });
+
+                document.getElementById('upload-progress-fill').style.width = '100%';
+                document.getElementById('upload-percentage').textContent = '100%';
+
+                if (result.status === 'success' || result.status === 'partial_success') {
+                    let message = 'File uploaded successfully!';
+                    if (result.chunk_count) {
+                        message += ` (${result.chunk_count} chunks)`;
                     }
-                    
-                    html += '</tbody></table>';
-                    content.innerHTML = html;
+                    if (result.status === 'partial_success') {
+                        message += ' (Partial: some chunks under-replicated)';
+                        showToast(message, 'warning');
+                    } else {
+                        showToast(message, 'success');
+                    }
+                    document.getElementById('file-input').value = '';
+                    setTimeout(() => {
+                        document.getElementById('upload-progress').classList.add('hidden');
+                    }, 2000);
+                    return result;
                 } else {
-                    content.innerHTML = '<p style="color: #e53e3e;">Error loading status</p>';
+                    showToast('Error: ' + result.message, 'error');
+                    return result;
                 }
-                
-                document.getElementById('status-content').style.display = 'block';
             } catch (error) {
-                document.getElementById('status-content').innerHTML = '<p style="color: #e53e3e;">Error: Could not connect to Namenode API</p>';
-                document.getElementById('status-content').style.display = 'block';
-            } finally {
-                document.getElementById('status-loading').style.display = 'none';
+                showToast('Error uploading file: ' + error.message, 'error');
+                return { status: 'error', message: error.message };
             }
         }
-        
+
         function downloadFile(filename) {
             window.location.href = `/api/download/${filename}`;
         }
-        
-        function showMessage(message, type) {
-            const messagesDiv = document.getElementById('messages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message message-' + type;
-            messageDiv.textContent = message;
-            
-            messagesDiv.innerHTML = '';
-            messagesDiv.appendChild(messageDiv);
-            
+
+        function openRenameModal(filename) {
+            fileToRename = filename;
+            document.getElementById('rename-input').value = filename;
+            document.getElementById('rename-modal').classList.remove('hidden');
+        }
+
+        function closeRenameModal() {
+            document.getElementById('rename-modal').classList.add('hidden');
+            fileToRename = null;
+        }
+
+        async function confirmRename() {
+            const newName = document.getElementById('rename-input').value;
+            if (!newName || newName === fileToRename) {
+                closeRenameModal();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/files/${fileToRename}/rename`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ new_filename: newName })
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showToast('File renamed successfully!', 'success');
+                    loadFiles();
+                } else {
+                    showToast('Error: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showToast('Error renaming file: ' + error.message, 'error');
+            }
+
+            closeRenameModal();
+        }
+
+        function openDeleteModal(filename) {
+            fileToDelete = filename;
+            document.getElementById('delete-filename').textContent = filename;
+            document.getElementById('delete-modal').classList.remove('hidden');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('delete-modal').classList.add('hidden');
+            fileToDelete = null;
+        }
+
+        async function confirmDelete() {
+            try {
+                const response = await fetch(`/api/files/${fileToDelete}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showToast('File deleted successfully!', 'success');
+                    loadFiles();
+                } else {
+                    showToast('Error: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showToast('Error deleting file: ' + error.message, 'error');
+            }
+
+            closeDeleteModal();
+        }
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
             setTimeout(() => {
-                messageDiv.remove();
+                toast.remove();
             }, 5000);
         }
-        
-        // Load data on page load
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function formatTime(timestamp) {
+            if (!timestamp) return 'Never';
+            const seconds = Math.floor((Date.now() / 1000) - timestamp);
+            if (seconds < 60) return seconds + 's ago';
+            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+            if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+            return Math.floor(seconds / 86400) + 'd ago';
+        }
+
+        // Auto-refresh every 10 seconds
+        function startAutoRefresh() {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            autoRefreshInterval = setInterval(() => {
+                loadStatus();
+                loadEvents();
+            }, 10000);
+        }
+
+        // Initialize
         window.onload = function() {
-            loadFiles();
             loadStatus();
+            loadEvents();
+            startAutoRefresh();
         };
     </script>
 </body>

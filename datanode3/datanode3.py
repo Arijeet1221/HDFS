@@ -16,9 +16,9 @@ if PROJECT_ROOT not in sys.path:
 
 from config import (
     NAMENODE_ADDRESS,
-    DATANODE2_ADDRESS,
-    DATANODE2_BIND_IP,
-    DATANODE2_PORT,
+    DATANODE3_ADDRESS,
+    DATANODE3_BIND_IP,
+    DATANODE3_PORT,
     HEARTBEAT_INTERVAL,
 )
 
@@ -32,7 +32,7 @@ from common.utils import (
 from common.kafka_producer import publish_event
 
 
-DATANODE_ID = "DN-5003"
+DATANODE_ID = "DN-5004"
 
 STORAGE_DIR = os.path.join(
     os.path.dirname(__file__),
@@ -80,16 +80,12 @@ def get_chunk_inventory():
     except Exception as exc:
 
         print(
-            f"[DataNode 2] Inventory scan error: "
+            f"[DataNode 3] Inventory scan error: "
             f"{exc}"
         )
 
     return inventory
 
-
-# =========================================================
-# PHASE 5: STORAGE CAPACITY
-# =========================================================
 
 def get_storage_capacity():
     """
@@ -104,7 +100,10 @@ def get_storage_capacity():
             "chunk_count": len(get_chunk_inventory()),
         }
     except Exception as exc:
-        print(f"[DataNode 2] Capacity check error: {exc}")
+        print(
+            f"[DataNode 3] Capacity check error: "
+            f"{exc}"
+        )
         return {
             "total_bytes": 0,
             "used_bytes": 0,
@@ -113,133 +112,20 @@ def get_storage_capacity():
         }
 
 
-# =========================================================
-# PHASE 5: DATA NODE REGISTRATION
-# =========================================================
-
-def register_with_namenode():
+def handle_client_request(conn, addr):
     """
-    Register this DataNode with the NameNode on startup.
+    Handle a request from NameNode or another DataNode.
     """
-    try:
-        capacity = get_storage_capacity()
-        inventory = get_chunk_inventory()
-        
-        with socket.socket(
-            socket.AF_INET,
-            socket.SOCK_STREAM,
-        ) as s:
-            s.connect(NAMENODE_ADDRESS)
-            send_message(
-                s,
-                {
-                    "type": "register_datanode",
-                    "datanode_id": DATANODE_ID,
-                    "ip": DATANODE2_ADDRESS[0],
-                    "port": DATANODE2_ADDRESS[1],
-                    "capacity": capacity,
-                    "inventory": inventory,
-                },
-            )
-            response = receive_message(s)
-            
-            if response and response.get("status") == "success":
-                print(f"[DataNode 2] Successfully registered with NameNode")
-                publish_event(
-                    "datanode.started",
-                    DATANODE_ID,
-                    {"host": DATANODE2_ADDRESS[0], "port": DATANODE2_ADDRESS[1], "capacity": capacity},
-                )
-            else:
-                print(f"[DataNode 2] Registration failed: {response}")
-                
-    except Exception as exc:
-        print(f"[DataNode 2] Registration error: {exc}")
-
-
-def send_heartbeat():
-    """
-    Periodically send health status and local
-    chunk inventory to the NameNode.
-    """
-
-    while True:
-
-        try:
-
-            inventory = get_chunk_inventory()
-            capacity = get_storage_capacity()
-
-            with socket.socket(
-                socket.AF_INET,
-                socket.SOCK_STREAM,
-            ) as s:
-
-                s.connect(
-                    NAMENODE_ADDRESS
-                )
-
-                send_message(
-                    s,
-                    {
-                        "type": "heartbeat",
-                        "datanode_id": DATANODE_ID,
-                        "ip": DATANODE2_ADDRESS[0],
-                        "port": DATANODE2_ADDRESS[1],
-                        "inventory": inventory,
-                        "capacity": capacity,
-                    },
-                )
-                publish_event(
-                    "heartbeat.received",
-                    DATANODE_ID,
-                    {
-                        "host": DATANODE2_ADDRESS[0],
-                        "port": DATANODE2_ADDRESS[1],
-                        "status": "ALIVE",
-                        "chunk_count": len(inventory),
-                        "storage_used": capacity.get("used_bytes", 0),
-                        "storage_free": capacity.get("free_bytes", 0),
-                    },
-                )
-
-        except Exception:
-            pass
-
-        time.sleep(
-            HEARTBEAT_INTERVAL
-        )
-
-
-def handle_chunk_operation(conn):
 
     try:
 
-        request = receive_message(
-            conn
-        )
+        request = receive_message(conn)
 
         if not request:
             return
 
-        request_type = request.get(
-            "type"
-        )
-
-        chunk_id = request.get(
-            "chunk_id"
-        )
-
-        if not chunk_id:
-
-            send_message(
-                conn,
-                {
-                    "status": "error",
-                    "message": "chunk_id is required",
-                },
-            )
-            return
+        request_type = request.get("type")
+        chunk_id = request.get("chunk_id")
 
         chunk_path = os.path.join(
             STORAGE_DIR,
@@ -252,94 +138,44 @@ def handle_chunk_operation(conn):
 
         if request_type == "store_chunk":
 
-            size = request.get(
-                "size"
+            chunk_size = request.get("size")
+
+            print(
+                f"[DataNode 3] Storing {chunk_id} "
+                f"({chunk_size} bytes)"
             )
-
-            if size is None:
-
-                send_message(
-                    conn,
-                    {
-                        "status": "error",
-                        "message": (
-                            "Chunk size is required."
-                        ),
-                    },
-                )
-                return
-
-            try:
-                size = int(size)
-            except (TypeError, ValueError):
-
-                send_message(
-                    conn,
-                    {
-                        "status": "error",
-                        "message": (
-                            "Invalid chunk size."
-                        ),
-                    },
-                )
-                return
 
             chunk_data = receive_file(
                 conn,
-                size,
+                chunk_size,
             )
 
-            if chunk_data is None:
-
-                send_message(
-                    conn,
-                    {
-                        "status": "error",
-                        "message": (
-                            "Failed to receive "
-                            "chunk data."
-                        ),
-                    },
-                )
-                return
-
-            # Phase 4: Calculate checksum
-            checksum = calculate_checksum(chunk_data)
+            checksum = calculate_checksum(
+                chunk_data
+            )
 
             with open(
                 chunk_path,
                 "wb",
             ) as f:
-
-                f.write(
-                    chunk_data
-                )
-
-            actual_size = os.path.getsize(
-                chunk_path
-            )
+                f.write(chunk_data)
 
             print(
-                f"[DataNode 2] Stored chunk "
-                f"{chunk_id} with size "
-                f"{actual_size} bytes, "
-                f"checksum: {checksum}"
+                f"[DataNode 3] Stored {chunk_id} "
+                f"(checksum: {checksum})"
             )
 
             send_message(
                 conn,
                 {
                     "status": "success",
-                    "message": (
-                        f"Stored {chunk_id}"
-                    ),
                     "checksum": checksum,
                 },
             )
             publish_event(
                 "chunk.created",
                 DATANODE_ID,
-                {"chunk_id": chunk_id, "size": actual_size, "checksum": checksum},
+                {"chunk_id": chunk_id, "size": chunk_size, "checksum": checksum},
             )
 
         # =================================================
@@ -368,7 +204,6 @@ def handle_chunk_operation(conn):
                 chunk_path,
                 "rb",
             ) as f:
-
                 chunk_data = f.read()
 
             # Phase 15: SHA-256 checksum
@@ -389,8 +224,9 @@ def handle_chunk_operation(conn):
             conn.sendall(chunk_data)
 
             print(
-                f"[DataNode 2] Sent chunk "
-                f"{chunk_id} (size: {file_size}, checksum: {checksum})"
+                f"[DataNode 3] Sending {chunk_id} "
+                f"({file_size} bytes, "
+                f"checksum: {checksum})"
             )
 
         # =================================================
@@ -458,7 +294,7 @@ def handle_chunk_operation(conn):
             )
 
             print(
-                f"[DataNode 2] Copying "
+                f"[DataNode 3] Copying "
                 f"{chunk_id} to "
                 f"{destination_ip}:"
                 f"{destination_port}"
@@ -499,13 +335,18 @@ def handle_chunk_operation(conn):
                     ) == "success"
                 ):
 
+                    print(
+                        f"[DataNode 3] Successfully "
+                        f"copied {chunk_id}"
+                    )
+
                     send_message(
                         conn,
                         {
                             "status": "success",
                             "message": (
-                                f"Copied {chunk_id} "
-                                "successfully"
+                                "Chunk copied "
+                                "successfully."
                             ),
                         },
                     )
@@ -548,7 +389,7 @@ def handle_chunk_operation(conn):
             try:
                 os.remove(chunk_path)
                 print(
-                    f"[DataNode 2] Deleted chunk {chunk_id}"
+                    f"[DataNode 3] Deleted chunk {chunk_id}"
                 )
                 send_message(
                     conn,
@@ -564,7 +405,7 @@ def handle_chunk_operation(conn):
                 )
             except Exception as exc:
                 print(
-                    f"[DataNode 2] Failed to delete {chunk_id}: {exc}"
+                    f"[DataNode 3] Failed to delete {chunk_id}: {exc}"
                 )
                 send_message(
                     conn,
@@ -587,7 +428,7 @@ def handle_chunk_operation(conn):
                 {
                     "status": "success",
                     "datanode_id": DATANODE_ID,
-                    "port": DATANODE2_ADDRESS[1],
+                    "port": DATANODE3_ADDRESS[1],
                     "inventory": inventory,
                 },
             )
@@ -608,126 +449,216 @@ def handle_chunk_operation(conn):
     except Exception as exc:
 
         print(
-            f"[DataNode 2] Connection error: "
+            f"[DataNode 3] Request handler error: "
             f"{exc}"
         )
 
+    finally:
+
+        conn.close()
+
+
+def send_heartbeat():
+    """
+    Send periodic heartbeats to NameNode.
+    """
+
+    while True:
+
+        time.sleep(HEARTBEAT_INTERVAL)
+
         try:
 
+            sock = socket.socket(
+                socket.AF_INET,
+                socket.SOCK_STREAM,
+            )
+
+            sock.connect(NAMENODE_ADDRESS)
+
+            inventory = get_chunk_inventory()
+            capacity = get_storage_capacity()
+
             send_message(
-                conn,
+                sock,
                 {
-                    "status": "error",
-                    "message": (
-                        "DataNode internal error."
-                    ),
+                    "type": "heartbeat",
+                    "datanode_id": DATANODE_ID,
+                    "ip": DATANODE3_ADDRESS[0],
+                    "port": DATANODE3_ADDRESS[1],
+                    "inventory": inventory,
+                    "capacity": capacity,
                 },
             )
 
-        except Exception:
-            pass
+            sock.close()
 
-    finally:
+            try:
+                publish_event(
+                    "heartbeat.received",
+                    DATANODE_ID,
+                    {
+                        "host": DATANODE3_ADDRESS[0],
+                        "port": DATANODE3_ADDRESS[1],
+                        "status": "ALIVE",
+                        "chunk_count": len(inventory),
+                        "storage_used": capacity.get("used_bytes", 0),
+                        "storage_free": capacity.get("free_bytes", 0),
+                    },
+                )
+            except Exception as exc:
+                print(f"[DataNode 3] Kafka heartbeat event error: {exc}")
 
-        try:
-            conn.close()
-        except Exception:
-            pass
+        except Exception as exc:
+
+            print(
+                f"[DataNode 3] Heartbeat error: "
+                f"{exc}"
+            )
 
 
-def start_datanode():
+def register_with_namenode():
+    """
+    Register this DataNode with the NameNode.
+    """
 
-    server_socket = socket.socket(
+    try:
+
+        sock = socket.socket(
+            socket.AF_INET,
+            socket.SOCK_STREAM,
+        )
+
+        sock.connect(NAMENODE_ADDRESS)
+
+        capacity = get_storage_capacity()
+        inventory = get_chunk_inventory()
+
+        send_message(
+            sock,
+            {
+                "type": "register_datanode",
+                "datanode_id": DATANODE_ID,
+                "ip": DATANODE3_ADDRESS[0],
+                "port": DATANODE3_ADDRESS[1],
+                "capacity": capacity,
+                "inventory": inventory,
+            },
+        )
+
+        response = receive_message(sock)
+
+        sock.close()
+
+        if response and response.get(
+            "status"
+        ) == "success":
+
+            print(
+                f"[DataNode 3] Successfully registered "
+                f"with NameNode"
+            )
+            publish_event(
+                "datanode.started",
+                DATANODE_ID,
+                {"host": DATANODE3_ADDRESS[0], "port": DATANODE3_ADDRESS[1], "capacity": capacity},
+            )
+
+        else:
+
+            print(
+                f"[DataNode 3] Registration failed: "
+                f"{response}"
+            )
+
+    except Exception as exc:
+
+        print(
+            f"[DataNode 3] Registration error: "
+            f"{exc}"
+        )
+
+
+def main():
+    """
+    Main DataNode 3 server loop.
+    """
+
+    print(
+        f"[DataNode 3] Starting on "
+        f"{DATANODE3_ADDRESS[0]}:"
+        f"{DATANODE3_ADDRESS[1]}"
+    )
+
+    # Start server socket FIRST
+    server_sock = socket.socket(
         socket.AF_INET,
         socket.SOCK_STREAM,
     )
 
-    server_socket.setsockopt(
+    server_sock.setsockopt(
         socket.SOL_SOCKET,
         socket.SO_REUSEADDR,
         1,
     )
 
     try:
-        server_socket.bind((DATANODE2_BIND_IP, DATANODE2_PORT))
+        server_sock.bind((DATANODE3_BIND_IP, DATANODE3_PORT))
     except OSError as exc:
         print(
-            f"[DataNode 2] FATAL: Cannot bind to port {DATANODE2_PORT}: {exc}"
+            f"[DataNode 3] FATAL: Cannot bind to port {DATANODE3_PORT}: {exc}"
         )
         print(
-            f"[DataNode 2] Another process may be using this port. "
-            f"Please check and kill existing DataNode 2 processes."
+            f"[DataNode 3] Another process may be using this port. "
+            f"Please check and kill existing DataNode 3 processes."
         )
         return
 
-    server_socket.listen(
-        10
-    )
-
-    print("=" * 60)
-    print(
-        f"DataNode 2 ({DATANODE_ID})"
-    )
-    print("=" * 60)
+    server_sock.listen(5)
 
     print(
-        f"Listening on "
-        f"{DATANODE2_ADDRESS[0]}:"
-        f"{DATANODE2_ADDRESS[1]}"
+        f"[DataNode 3] Listening for connections on port {DATANODE3_PORT}..."
     )
 
-    print(
-        f"Storage: {STORAGE_DIR}"
-    )
-
-    print(
-        f"Existing chunks: "
-        f"{len(get_chunk_inventory())}"
-    )
-
-    print("=" * 60)
-
-    # Phase 5: Register with NameNode on startup
+    # Only register AFTER successful binding
     register_with_namenode()
 
-    threading.Thread(
+    # Start heartbeat thread
+    heartbeat_thread = threading.Thread(
         target=send_heartbeat,
         daemon=True,
-        name="DataNode2Heartbeat",
-    ).start()
+    )
+    heartbeat_thread.start()
 
-    while True:
+    try:
 
-        try:
+        while True:
 
-            conn, address = (
-                server_socket.accept()
+            conn, addr = server_sock.accept()
+
+            print(
+                f"[DataNode 3] Connection from "
+                f"{addr[0]}:{addr[1]}"
             )
 
-            threading.Thread(
-                target=handle_chunk_operation,
-                args=(conn,),
+            client_thread = threading.Thread(
+                target=handle_client_request,
+                args=(conn, addr),
                 daemon=True,
-            ).start()
-
-        except KeyboardInterrupt:
-
-            print(
-                "\n[DataNode 2] "
-                "Shutdown requested."
             )
 
-            break
+            client_thread.start()
 
-        except Exception as exc:
+    except KeyboardInterrupt:
 
-            print(
-                f"[DataNode 2] "
-                f"Server error: {exc}"
-            )
+        print(
+            "\n[DataNode 3] Shutting down..."
+        )
 
-    server_socket.close()
+    finally:
+
+        server_sock.close()
 
 
 if __name__ == "__main__":
-    start_datanode()
+    main()

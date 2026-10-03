@@ -1,0 +1,48 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Runtime logs
+*.log
+
+# Environment
+.env
+
+# AWS credentials/keys
+aws/
+*.pem
+
+# DataNode runtime storage
+datanode1/storage/*
+datanode2/storage/*
+datanode3/storage/*
+
+# Runtime uploads/downloads
+uploads/*
+
+# NameNode runtime metadata
+namenode/metadata.json
+
+# Backup files
+*.backup
+*.bak
+*.phase0-backup
+*.phase1-backup
+*.phase1.1-backup
+*.phase1.2-backup
+*.phase1.3-backup
+*.phase3-backup
+*.phase4-backup
+*.phase5-backup
+
+# Python backup variants
+*.py.phase0-backup
+*.py.phase1-backup
+*.py.phase1.1-backup
+*.py.phase1.2-backup
+*.py.phase1.3-backup
+*.py.phase3-backup
+*.py.phase4-backup
+*.py.phase5-backup

@@ -1,0 +1,1 @@
+# Mini HDFS NameNode package
